@@ -1,0 +1,80 @@
+name: Node CI
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'node/**'
+      - '.github/workflows/node-ci.yml'
+  pull_request:
+    paths:
+      - 'node/**'
+      - '.github/workflows/node-ci.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: '测试通过后发布到正式 npm（需先配置 npm Trusted Publisher）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: node
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: 安装依赖
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      # 自动填写实际仓库元信息，供 npm 发布来源校验使用。
+      - name: 设置包的仓库地址
+        run: npm pkg set 'repository.type=git' "repository.url=git+https://github.com/${GITHUB_REPOSITORY}.git" 'repository.directory=node'
+      - name: 测试和打包
+        run: |
+          mkdir -p dist
+          npm pack --pack-destination dist
+      - name: 保存 npm 安装包
+        uses: actions/upload-artifact@v7
+        with:
+          name: node-dist
+          path: node/dist/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: 发布到 npm
+    needs: build
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.publish &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: node-dist
+          path: dist/
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: 更新支持 OIDC 的 npm 工具
+        run: npm install --global npm@11
+      # 直接发布本次通过测试的 tarball，不重新构建，也不需要长期 Token。
+      - name: 发布 npm 安装包
+        run: npm publish ./dist/*.tgz --access public

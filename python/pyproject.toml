@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emma-package-publish-lab"
+version = "0.1.0"
+description = "A minimal Python package for learning the publishing workflow"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["emma_package_publish_lab*"]
+namespaces = false
