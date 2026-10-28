@@ -1,6 +1,6 @@
 {
   "name": "emma-package-publish-lab-local",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A minimal Node.js package for learning the publishing workflow",
   "type": "commonjs",
   "main": "./src/index.js",
