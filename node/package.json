@@ -1,5 +1,5 @@
 {
-  "name": "emma-package-publish-lab",
+  "name": "emma-package-publish-lab-local",
   "version": "0.1.0",
   "description": "A minimal Node.js package for learning the publishing workflow",
   "type": "commonjs",
@@ -24,5 +24,10 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lfwxyC/publish-test.git",
+    "directory": "node"
+  }
 }

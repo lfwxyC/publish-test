@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: '测试通过后发布到正式 npm（首次发布需配置 NPM_TOKEN）'
+        description: '测试通过后发布到正式 npm（使用已绑定的 Trusted Publisher）'
         type: boolean
         default: false
 
@@ -61,9 +61,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: npm
-    # 首次发布使用 Token；绑定可信发布者后，将此权限改为 id-token: write。
+    # 授权 GitHub 签发本次发布使用的 OIDC 身份凭证。
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/download-artifact@v6
         with:
@@ -76,14 +77,6 @@ jobs:
           package-manager-cache: false
       - name: 更新 npm 工具
         run: npm install --global npm@11
-      # 首次发布读取 GitHub Secret，Token 仅提供给发布步骤。
-      # 绑定可信发布者后移除此 env，使用 OIDC 认证。
+      # 通过 OIDC 发布本次已测试的安装包，不再读取 NPM_TOKEN。
       - name: 发布 npm 安装包
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::请先在仓库 Settings → Secrets and variables → Actions 配置 NPM_TOKEN。"
-            exit 1
-          fi
-          npm publish ./dist/*.tgz --access public
+        run: npm publish ./dist/*.tgz --access public

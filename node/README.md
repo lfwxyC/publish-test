@@ -1,9 +1,9 @@
-# emma-package-publish-lab — Node
+# emma-package-publish-lab-local — Node
 
 用于练习 npm 打包和发布的最小包，需要 Node 22.14+，没有第三方依赖。
 
 ```javascript
-const { hello } = require('emma-package-publish-lab');
+const { hello } = require('emma-package-publish-lab-local');
 
 console.log(hello());       // Hello, world!
 console.log(hello('Emma')); // Hello, Emma!

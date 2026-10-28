@@ -5,9 +5,9 @@
 | 目录 | 安装名 | 导入方式 | 默认版本 |
 | --- | --- | --- | --- |
 | `python/` | `emma-package-publish-lab` | `from emma_package_publish_lab import hello` | `0.1.0` |
-| `node/` | `emma-package-publish-lab` | `require('emma-package-publish-lab')` | `0.1.0` |
+| `node/` | `emma-package-publish-lab-local` | `require('emma-package-publish-lab-local')` | `0.1.0` |
 
-这两个安装名分别属于 PyPI 和 npm，不会互相冲突；它们只是测试名称，发布前需要确认可用，必要时添加自己的唯一后缀。Python 改安装名时只需改 `pyproject.toml` 的 `name`，导入目录可以不变；Node 改名后还需重新生成 lock 文件。
+Python 和 Node 的安装名分别由 PyPI 和 npm 独立管理；它们只是测试名称，发布前需要确认可用，必要时添加自己的唯一后缀。Python 改安装名时只需改 `pyproject.toml` 的 `name`，导入目录可以不变；Node 改名后还需重新生成 lock 文件。
 
 ## 先测试 Python
 
@@ -76,28 +76,54 @@ python -c 'from emma_package_publish_lab import hello; print(hello("TestPyPI"))'
 
 这个测试包没有第三方运行时依赖，因此可以使用 `--no-deps`。准备切到正式 PyPI 时，需要在正式 PyPI 单独配置可信发布者，并调整工作流的上传地址及 environment；TestPyPI 配置不会自动继承。
 
-## Node：首次和后续均通过 GitHub CI 发布
+## Node：本地首发，再接 GitHub CI
 
-npm 工作流的手动发布目标是正式 npm。普通 push / PR 只构建；只有默认分支手动勾选发布后才会上传，不需要 tag，也不需要本地登录发布。
+当前 Node 包名为 `emma-package-publish-lab-local`，用于从零体验本地首发。之前通过 CI 发布的 `emma-package-publish-lab@0.1.0` 保留在 npm。卸载或下架已发布包不能释放原来的包名与版本号组合。
 
-### 首次发布：使用临时 Token
+工作流从开始就使用 OIDC，无需给新包配置 `NPM_TOKEN`。普通 push / PR 只构建；默认分支手动勾选发布后才会上传，不需要 tag。
 
-1. 注册 npm 账号并确认包名可用。改名后，在 `node/` 执行 `npm install --package-lock-only --ignore-scripts --no-audit --no-fund` 更新锁文件。
-2. 在 npm 创建短有效期 Granular Access Token：勾选 Bypass two-factor authentication，Packages and scopes 选择 Read and write (publish and stage)。这个新注册的测试账号选择 All Packages；公司账号应按实际包 scope 限制权限。Organizations 权限选择 No access。
-3. 在 GitHub 仓库 `Settings → Secrets and variables → Actions → New repository secret` 添加 `NPM_TOKEN`，值为完整 Token，不要写入源码或日志。
-4. 在 GitHub 仓库 `Settings → Environments` 创建名为 `npm` 的环境。
-5. 将工作流提交并推送到默认分支。在 `Actions → Node CI → Run workflow` 选择默认分支，勾选发布选项。CI 使用临时 Token 发布 `0.1.0`。
+### 本地发布首版
 
-CI 会自动填写当前 GitHub 仓库的 package 元信息，发布本次测试生成的 tarball。
+1. 注册 npm 账号，验证邮箱，并开启账号 2FA。
+2. 在本项目的 `node/` 目录执行登录，并按提示在浏览器完成身份验证：
 
-### 首次成功后：切换可信发布者
+   ```shell
+   npm login --registry=https://registry.npmjs.org/
+   npm whoami --registry=https://registry.npmjs.org/
+   ```
 
-1. 在 npm 包的 Settings → Trusted publishing 中添加 GitHub Actions：owner 和 repository 填实际值，workflow filename 为 `node-ci.yml`，environment 为 `npm`。允许此发布者执行 `npm publish`（direct publishing）。
-2. 修改 `.github/workflows/node-ci.yml` 中 publish job 的权限：将 `contents: read` 改为 `id-token: write`。移除发布步骤的 `env: NODE_AUTH_TOKEN` 和检查 Token 是否为空的代码，保留 `npm publish ./dist/*.tgz --access public`。
-3. 在 `node/` 执行 `npm version 0.1.1 --no-git-tag-version`，同步更新 package.json 和 lock 文件，提交并推送。
-4. 手动运行 Node CI 并勾选发布，验证 OIDC 成功发布 `0.1.1`，然后删除 GitHub 的 `NPM_TOKEN` Secret，并撤销 npm 临时 Token。
+3. 预览打包内容；此命令会先执行语法检查和测试，不上传包：
 
-npm 要求包已存在才能绑定可信发布者；新的 trusted publisher 配置需在创建后 2 天内完成首次成功发布，超时需重新配置。后续发布只需更新版本并运行 CI，不再依赖临时 Token。
+   ```shell
+   npm pack --dry-run
+   ```
+
+4. 确认后执行实际发布，并按提示完成身份验证：
+
+   ```shell
+   npm publish --access public --registry=https://registry.npmjs.org/
+   ```
+
+   发布目标为正式 npm，首版是 `emma-package-publish-lab-local@0.1.0`。
+
+### 绑定可信发布者并验证 CI
+
+1. 在新包的 Settings → Trusted publishing 中添加 GitHub Actions：owner 为 `lfwxyC`，repository 为 `publish-test`，workflow filename 为 `node-ci.yml`，environment 为 `npm`。允许此发布者执行 `npm publish`（direct publishing）。旧包的绑定不会自动应用到新包。
+2. 在 GitHub 仓库创建或复用 `npm` 环境。
+3. 在 `node/` 执行 `npm version 0.1.1 --no-git-tag-version`，同步更新 package.json 和 lock 文件，将代码和 OIDC 工作流一起提交并推送。
+4. 在 `Actions → Node CI → Run workflow` 选择默认分支，勾选发布选项，验证 OIDC 成功发布 `0.1.1`。
+
+CI 自动填写当前仓库的元信息，发布本次测试生成的 tarball；没有读取 `NPM_TOKEN` 的步骤。之前练习创建的临时 Token 和 GitHub Secret 可以清理。
+
+安装验证请在另一个空目录执行：
+
+```shell
+npm init -y
+npm install emma-package-publish-lab-local@0.1.0 --registry=https://registry.npmjs.org/
+node -e 'const { hello } = require("emma-package-publish-lab-local"); console.log(hello("npm"))'
+```
+
+npm 要求包已存在才能绑定可信发布者；新的可信发布者配置需在创建后 2 天内完成首次成功发布，超时需重新配置。后续发布只需更新版本并运行 CI。
 
 ## 版本和发布行为
 
